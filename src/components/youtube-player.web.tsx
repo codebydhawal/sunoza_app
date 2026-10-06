@@ -7,6 +7,7 @@ export default function YouTubePlayer({ embedUrl, title }: YouTubePlayerProps) {
     display: 'block',
     width: '100%',
     aspectRatio: '16 / 9',
+    minHeight: 200,
     border: 0,
     borderRadius: 16,
     backgroundColor: '#000000',

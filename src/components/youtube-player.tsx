@@ -20,5 +20,5 @@ export default function YouTubePlayer({ embedUrl, title }: YouTubePlayerProps) {
 }
 
 const styles = StyleSheet.create({
-  player: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#000000' },
+  player: { width: '100%', aspectRatio: 16 / 9, minHeight: 200, backgroundColor: '#000000' },
 });

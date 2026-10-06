@@ -51,17 +51,18 @@ export type VideoDetails = Video & {
   youtubeUrl?: string;
   embedUrl?: string;
 };
-export type PlaybackInfo = { videoId: string; title: string; channelTitle?: string; embedUrl: string };
+export type PlaybackInfo = { videoId: string; title: string; channelTitle?: string; embedUrl: string; audioStreamUrl?: string | null };
+export type Artist = { channelId: string; name: string; thumbnailUrl?: string };
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number, readonly code?: string) { super(message); }
 }
 
-async function request<T>(path: string, body?: unknown, token?: string): Promise<T> {
+async function request<T>(path: string, body?: unknown, token?: string, method?: string): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
-      method: body ? 'POST' : 'GET',
+      method: method ?? (body ? 'POST' : 'GET'),
       headers: {
         Accept: 'application/json',
         ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -81,6 +82,25 @@ async function request<T>(path: string, body?: unknown, token?: string): Promise
   return payload.data;
 }
 
+export type PlaylistVideoData = { videoId: string; title: string; channelTitle?: string; thumbnailUrl?: string };
+export type PlaylistData = { id: number; name: string; clientKey: string | null; createdAt: string; videos: PlaylistVideoData[] };
+
+async function authorizedRequest<T>(path: string, body?: unknown, method?: string): Promise<T> {
+  const token = await readToken();
+  if (!token) throw new ApiError('Sign in to manage playlists.', 401);
+  return request<T>(path, body, token, method);
+}
+
+export const listAccountPlaylists = () => authorizedRequest<PlaylistData[]>('/rest/playlists');
+export const createAccountPlaylist = (name: string, clientKey: string) =>
+  authorizedRequest<PlaylistData>('/rest/playlists', { name, clientKey });
+export const addAccountPlaylistVideo = (playlistId: number, video: PlaylistVideoData) =>
+  authorizedRequest<PlaylistData>(`/rest/playlists/${playlistId}/videos`, video);
+export const removeAccountPlaylistVideo = (playlistId: number, videoId: string) =>
+  authorizedRequest<PlaylistData>(`/rest/playlists/${playlistId}/videos/${encodeURIComponent(videoId)}`, undefined, 'DELETE');
+export const deleteAccountPlaylist = (playlistId: number) =>
+  authorizedRequest<{ status: string }>(`/rest/playlists/${playlistId}`, undefined, 'DELETE');
+
 async function saveAuth(result: AuthResult): Promise<User> {
   await writeToken(result.accessToken);
   return result.user;
@@ -98,7 +118,7 @@ export async function login(email: string, password: string): Promise<User> {
   return saveAuth(result);
 }
 
-export async function searchVideos(query: string): Promise<{ result: SearchResponse; guestRemaining: number | null }> {
+export async function searchVideos(query: string, channelId?: string): Promise<{ result: SearchResponse; guestRemaining: number | null }> {
   const token = await readToken();
   let response: Response;
   try {
@@ -109,7 +129,7 @@ export async function searchVideos(query: string): Promise<{ result: SearchRespo
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ query: query.trim(), maxResults: 10 }),
+      body: JSON.stringify({ query: query.trim(), maxResults: 10, ...(channelId ? { channelId } : {}) }),
     });
   } catch {
     throw new Error(`Could not reach Sunoza server. Check the server and API address (${API_BASE_URL}).`);
@@ -125,6 +145,18 @@ export async function searchVideos(query: string): Promise<{ result: SearchRespo
     result: payload,
     guestRemaining: remainingHeader === null ? null : Number(remainingHeader),
   };
+}
+
+export async function searchArtists(query: string): Promise<Artist[]> {
+  return authorizedRequest<Artist[]>(`/rest/artists/search?query=${encodeURIComponent(query.trim())}`);
+}
+
+export async function getFavoriteArtists(): Promise<Artist[]> {
+  return authorizedRequest<Artist[]>('/rest/artists/favorites');
+}
+
+export async function saveFavoriteArtists(artists: Artist[]): Promise<Artist[]> {
+  return authorizedRequest<Artist[]>('/rest/artists/favorites', artists, 'PUT');
 }
 
 export async function getVideoDetails(videoId: string): Promise<VideoDetails> {
