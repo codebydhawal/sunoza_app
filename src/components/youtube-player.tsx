@@ -6,7 +6,10 @@ type YouTubePlayerProps = { embedUrl: string; title: string };
 export default function YouTubePlayer({ embedUrl, title }: YouTubePlayerProps) {
   return (
     <WebView
-      source={{ uri: embedUrl }}
+      source={{
+        uri: embedUrl,
+        headers: { Referer: 'https://com.sunoza.sunozaapp' },
+      }}
       style={styles.player}
       originWhitelist={['https://www.youtube-nocookie.com']}
       allowsFullscreenVideo
